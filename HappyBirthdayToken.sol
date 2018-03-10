@@ -101,7 +101,7 @@ contract HappyBirthdayToken is StandardToken {
     uint256 public unitsOneEthCanBuy;     // How many units of your coin can be bought by 1 ETH?
     uint256 public totalEthInWei;         // WEI is the smallest unit of ETH (the equivalent of cent in USD or satoshi in BTC). We'll store the total ETH raised via our ICO here.  
     address public fundsWallet;           // Where should the raised ETH go?
-    uint256 public amount;                // Last amount sent out
+    uint256 public lastChange;
 
     // This is a constructor function 
     // which means the following function name has to match the contract name declared above
@@ -116,19 +116,32 @@ contract HappyBirthdayToken is StandardToken {
     }
 
     function() public payable {
-        totalEthInWei = totalEthInWei + msg.value;
-        amount = (msg.value * unitsOneEthCanBuy)/(10**18);
-        if (balances[fundsWallet] < amount) {
+        require(msg.value >= (10**17)); //require a minimum of one HBD token to be purchased / .1 ETH
+        
+        uint256 weiPurchaseAmount = msg.value;
+        uint256 weiChangeAmount = weiPurchaseAmount % (10**17);
+        uint256 weiActualPurchaseAmount = weiPurchaseAmount;
+       
+        //if more ETH was sent then only deduct amount for tokens
+        if (weiChangeAmount > 0) {
+            weiActualPurchaseAmount = weiPurchaseAmount - weiChangeAmount;
+        }
+
+
+        totalEthInWei = totalEthInWei + weiActualPurchaseAmount; 
+        uint256 tokenAmount = (weiActualPurchaseAmount * unitsOneEthCanBuy)/(10**18); 
+        if (balances[fundsWallet] < tokenAmount) {
             return;
         }
 
-        balances[fundsWallet] = balances[fundsWallet] - amount;
-        balances[msg.sender] = balances[msg.sender] + amount;
+        balances[fundsWallet] = balances[fundsWallet] - tokenAmount;
+        balances[msg.sender] = balances[msg.sender] + tokenAmount;
 
-        Transfer(fundsWallet, msg.sender, amount); // Broadcast a message to the blockchain
+        Transfer(fundsWallet, msg.sender, tokenAmount); // Broadcast a message to the blockchain
 
         //Transfer ether to fundsWallet
-        fundsWallet.transfer(msg.value);                               
+        fundsWallet.transfer(weiActualPurchaseAmount);     
+        lastChange = weiChangeAmount;                         
     }
 
     /* Approves and then calls the receiving contract */
